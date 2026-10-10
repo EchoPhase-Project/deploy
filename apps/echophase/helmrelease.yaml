@@ -30,13 +30,13 @@ spec:
     imageRegistry: localhost:30500
     echophase:
       image:
-        tag: "0.0.0-g4bcbb08" # ci:image-tag
+        tag: "0.0.0-gcbcaefa" # ci:image-tag
     migrate:
       image:
-        tag: "0.0.0-g4bcbb08" # ci:image-tag
+        tag: "0.0.0-gcbcaefa" # ci:image-tag
     webapp:
       image:
-        tag: "0.0.0-g4bcbb08" # ci:image-tag
+        tag: "0.0.0-gcbcaefa" # ci:image-tag
       service:
         # Traefik's LoadBalancer already holds ports 80/443 on the node.
         type: ClusterIP
