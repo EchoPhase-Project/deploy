@@ -101,11 +101,12 @@ for id in $old; do gh api -X DELETE "repos/$org/deploy/keys/$id" && echo "old de
 
 # Weblate (apps/weblate) listens on 127.0.0.1:30810 of the node. Its public
 # host (secrets.enc.yaml: siteDomain) is this node's tailnet name on :10000,
-# one of the three ports Funnel allows (443, 8443, 10000).
+# one of the three ports Funnel allows (443, 8443, 10000). Its /hooks/ path
+# (GitHub push notifications) goes public on :8443, next to Woodpecker's.
 ["weblate:expose"]
-description = "Serve Weblate in the tailnet on :10000; --public opens it to the internet (Funnel)"
+description = "Serve Weblate in the tailnet on :10000 and its webhooks publicly on :8443/hooks/; --public opens all of it (Funnel)"
 usage = '''
-flag "--public" help="Through Funnel, for translators outside the tailnet"
+flag "--public" help="The whole UI through Funnel, for translators outside the tailnet"
 '''
 run = '''
 #!/usr/bin/env bash
@@ -115,9 +116,13 @@ if [ "${usage_public:-false}" = true ]; then
 else
     tailscale serve --bg --https=10000 http://127.0.0.1:30810
 fi
+tailscale funnel --bg --https=8443 --set-path=/hooks/ http://127.0.0.1:30810/hooks/
 tailscale serve status
 '''
 
 ["weblate:unexpose"]
-description = "Stop serving Weblate (tailnet and Funnel)"
-run = "tailscale serve --https=10000 off"
+description = "Stop serving Weblate (UI and webhooks)"
+run = [
+  "tailscale serve --https=10000 off",
+  "tailscale funnel --https=8443 --set-path=/hooks/ off",
+]
