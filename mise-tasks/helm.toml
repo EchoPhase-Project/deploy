@@ -1,0 +1,8 @@
+# Flux owns the release: change it by committing here. These only look.
+["helm:status"]
+description = "Status of the release"
+run = 'helm status "$HELM_RELEASE" --namespace "$HELM_NAMESPACE"'
+
+["helm:history"]
+description = "Revisions of the release"
+run = 'helm history "$HELM_RELEASE" --namespace "$HELM_NAMESPACE"'

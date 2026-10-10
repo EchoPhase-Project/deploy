@@ -1,5 +1,6 @@
 # EchoPhase in the local k3s. CI (Woodpecker) changes only the image tags
-# below; Flux upgrades the release when this file or the chart changes.
+# below (`mise run release:bump`, per component); Flux upgrades the release
+# when this file or the chart changes.
 apiVersion: helm.toolkit.fluxcd.io/v2
 kind: HelmRelease
 metadata:
@@ -30,13 +31,13 @@ spec:
     imageRegistry: localhost:30500
     echophase:
       image:
-        tag: "0.0.0-gcbcaefa" # ci:image-tag
+        tag: "0.0.0-gcbcaefa" # ci:image-tag server
     migrate:
       image:
-        tag: "0.0.0-gcbcaefa" # ci:image-tag
+        tag: "0.0.0-gcbcaefa" # ci:image-tag server
     webapp:
       image:
-        tag: "0.0.0-gcbcaefa" # ci:image-tag
+        tag: "0.0.0-gcbcaefa" # ci:image-tag webapp
       service:
         # Traefik's LoadBalancer already holds ports 80/443 on the node.
         type: ClusterIP

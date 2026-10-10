@@ -1,0 +1,34 @@
+# A release is a commit here: the image tag of one component in
+# apps/echophase/helmrelease.yaml (lines marked `# ci:image-tag <component>`).
+# Flux sees it and upgrades. The server and webapp Woodpecker pipelines clone
+# this repository and run it with --push; by hand, commit and push yourself.
+["release:bump"]
+description = "Set a component's image tag in the HelmRelease and commit"
+usage = '''
+flag "--component <component>" help="Which image" required=#true {
+  choices "server" "webapp"
+}
+flag "--tag <tag>" help="Image tag" required=#true
+flag "--push" help="Push the commit (retries on a concurrent push)"
+'''
+run = '''
+#!/usr/bin/env bash
+set -euo pipefail
+file=apps/echophase/helmrelease.yaml
+sed -i -E "s#^([[:space:]]*tag: )\"[^\"]*\"( \# ci:image-tag $usage_component)\$#\1\"$usage_tag\"\2#" "$file"
+if git diff --quiet -- "$file"; then
+    echo "$usage_component already at $usage_tag"
+    exit 0
+fi
+git add "$file"
+git commit -q -m "release: $usage_component $usage_tag"
+echo "committed $usage_component $usage_tag"
+if [ "${usage_push:-false}" = true ]; then
+    for attempt in 1 2 3; do
+        git push -q origin HEAD && { echo "pushed"; exit 0; }
+        git pull -q --rebase origin "$(git branch --show-current)"
+    done
+    echo "push failed" >&2
+    exit 1
+fi
+'''

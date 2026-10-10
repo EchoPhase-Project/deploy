@@ -1,0 +1,69 @@
+# A development copy of EchoPhase in the same cluster, built from local
+# checkouts (uncommitted changes included): release echophase-dev in
+# namespace echophase-dev, at http://dev.echophase.localhost. Flux does not
+# manage it and nothing goes through GitHub. Its own databases; passwords are
+# generated on the first deploy and kept by the release.
+
+["dev:deploy"]
+description = "Build server/webapp from local checkouts and deploy them as echophase-dev"
+usage = '''
+flag "--server-dir <dir>" help="Local checkout of EchoPhase-Project/server" env="SERVER_DIR" required=#true
+flag "--webapp-dir <dir>" help="Local checkout of EchoPhase-Project/webapp" env="WEBAPP_DIR" required=#true
+flag "--charts-dir <dir>" help="Local checkout of EchoPhase-Project/charts" env="CHARTS_DIR" required=#true
+flag "--skip-build" help="Deploy the chart with the images of the last dev deploy"
+'''
+run = '''
+#!/usr/bin/env bash
+set -euo pipefail
+# Relative paths count from where mise was called, not the task's directory.
+abs() { (cd "${MISE_ORIGINAL_CWD:-.}" && realpath "$1"); }
+server=$(abs "$usage_server_dir"); webapp=$(abs "$usage_webapp_dir"); charts=$(abs "$usage_charts_dir")
+release=echophase-dev ns=echophase-dev
+exists=$(helm status "$release" -n "$ns" >/dev/null 2>&1 && echo yes || echo no)
+
+if [ "${usage_skip_build:-false}" = true ]; then
+    [ "$exists" = yes ] || { echo "no $release yet: deploy once without --skip-build" >&2; exit 1; }
+    set_tags=()
+else
+    stag="dev-$(cd "$server" && scripts/image-tag.sh)"
+    wtag="dev-$(cd "$webapp" && scripts/image-tag.sh)"
+    docker build -t "$DOCKER_REGISTRY/echophase/server:$stag" "$server/src"
+    docker build -t "$DOCKER_REGISTRY/echophase/webapp:$wtag" "$webapp"
+    docker push -q "$DOCKER_REGISTRY/echophase/server:$stag"
+    docker push -q "$DOCKER_REGISTRY/echophase/webapp:$wtag"
+    set_tags=(--set "echophase.image.tag=$stag,migrate.image.tag=$stag,webapp.image.tag=$wtag")
+fi
+
+common=(
+    --namespace "$ns" --create-namespace --wait --timeout 10m
+    --set imageRegistry="$DOCKER_REGISTRY"
+    --set echophase.image.repository=echophase/server,migrate.image.repository=echophase/server
+    --set webapp.image.repository=echophase/webapp
+    --set webapp.service.type=ClusterIP
+    --set webapp.ingress.className=traefik,webapp.ingress.controller=traefik
+    --set webapp.ingress.host=dev.echophase.localhost
+)
+if [ "$exists" = yes ]; then
+    helm upgrade "$release" "$charts/charts/echophase" "${common[@]}" --reset-then-reuse-values "${set_tags[@]}"
+else
+    pw() { head -c 24 /dev/urandom | base64 | tr -d '/+='; }
+    helm install "$release" "$charts/charts/echophase" "${common[@]}" "${set_tags[@]}" \
+        --set "secrets.POSTGRES_PASSWORD=$(pw),secrets.VALKEY_PASSWORD=$(pw)"
+fi
+echo "http://dev.echophase.localhost"
+'''
+
+["dev:status"]
+description = "Pods and release of echophase-dev"
+run = [
+  "helm status echophase-dev -n echophase-dev",
+  "kubectl -n echophase-dev get pods",
+]
+
+["dev:down"]
+description = "Remove echophase-dev and its namespace, databases included"
+confirm = "Delete echophase-dev and all its data?"
+run = [
+  "helm uninstall echophase-dev -n echophase-dev --ignore-not-found",
+  "kubectl delete namespace echophase-dev --ignore-not-found",
+]
