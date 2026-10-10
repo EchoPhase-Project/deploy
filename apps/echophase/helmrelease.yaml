@@ -1,6 +1,6 @@
 # EchoPhase in the local k3s. CI (Woodpecker) changes only the image tags
-# below (`mise run release:bump`, per component); Flux upgrades the release
-# when this file or the chart changes.
+# below (`mise run release:bump`, per component); the chart version is in
+# chart.yaml. Flux upgrades the release when either changes.
 apiVersion: helm.toolkit.fluxcd.io/v2
 kind: HelmRelease
 metadata:
@@ -11,14 +11,9 @@ spec:
   # The release Helm already manages (helm list -n echophase): Flux upgrades
   # it in place, keeping its history and rollbacks.
   releaseName: echophase
-  chart:
-    spec:
-      chart: ./charts/echophase
-      reconcileStrategy: Revision
-      sourceRef:
-        kind: GitRepository
-        name: deploy
-        namespace: flux-system
+  chartRef:
+    kind: OCIRepository
+    name: echophase-chart
   upgrade:
     remediation:
       retries: 2
@@ -28,15 +23,24 @@ spec:
       name: echophase-secret-values
       valuesKey: values.yaml
   values:
+    # Images come from the in-cluster registry, where Woodpecker pushes them
+    # (the chart's defaults are the GHCR releases).
     imageRegistry: localhost:30500
+    secrets:
+      # Its password is in secret-values.enc.yaml; the chart's default user
+      # is empty (Scylla without authentication).
+      SCYLLA_USERNAME: echophase
     echophase:
       image:
+        repository: echophase/server
         tag: "0.0.0-gcbcaefa" # ci:image-tag server
     migrate:
       image:
+        repository: echophase/server
         tag: "0.0.0-gcbcaefa" # ci:image-tag server
     webapp:
       image:
+        repository: echophase/webapp
         tag: "0.0.0-gcbcaefa" # ci:image-tag webapp
       service:
         # Traefik's LoadBalancer already holds ports 80/443 on the node.

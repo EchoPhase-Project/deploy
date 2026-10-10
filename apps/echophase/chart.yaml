@@ -1,0 +1,15 @@
+# The published chart (EchoPhase-Project/charts, tag vX.Y.Z). To upgrade it,
+# change the tag here; the image tags in helmrelease.yaml stay CI's.
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: OCIRepository
+metadata:
+  name: echophase-chart
+  namespace: echophase
+spec:
+  interval: 1h
+  url: oci://ghcr.io/echophase-project/charts/echophase
+  ref:
+    tag: 0.1.0
+  layerSelector:
+    mediaType: application/vnd.cncf.helm.chart.content.v1.tar+gzip
+    operation: copy
