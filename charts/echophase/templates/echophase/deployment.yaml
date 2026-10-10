@@ -1,0 +1,123 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "echophase.fullname" . }}-server
+  labels:
+    {{- include "echophase.labels" . | nindent 4 }}
+    app.kubernetes.io/component: server
+spec:
+  replicas: {{ .Values.echophase.replicas }}
+  selector:
+    matchLabels:
+      {{- include "echophase.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: server
+  template:
+    metadata:
+      labels:
+        {{- include "echophase.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: server
+      annotations:
+        # Roll the pods when their environment changes.
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+        checksum/secret: {{ include (print $.Template.BasePath "/secret.yaml") . | sha256sum }}
+    spec:
+      # Each pod waits for the databases, then applies EF migrations, then
+      # starts the server: no Helm hooks needed for the order. Concurrent pods
+      # are safe, EF takes a database lock while migrating.
+      initContainers:
+      - name: wait-for-postgres
+        image: postgres:16-alpine
+        command: ['sh', '-c']
+        args:
+        - |
+          echo "Waiting for postgres to be ready..."
+          until pg_isready -h {{ include "echophase.fullname" . }}-postgres -p 5432 -U postgres; do
+            echo "Postgres not ready, sleeping..."
+            sleep 3
+          done
+          echo "Postgres is ready!"
+      - name: wait-for-scylla
+        image: cassandra:4
+        command: ['sh', '-c']
+        args:
+        - |
+          echo "Waiting for scylla to be ready..."
+          until cqlsh {{ include "echophase.fullname" . }}-scylla -e "SELECT now() FROM system.local"; do
+            echo "Scylla not ready, sleeping..."
+            sleep 3
+          done
+          echo "Scylla is ready!"
+      - name: wait-for-valkey
+        image: redis:alpine
+        command: ['sh', '-c']
+        args:
+        - |
+          echo "Waiting for valkey to be ready..."
+          until redis-cli -h {{ include "echophase.fullname" . }}-valkey ping; do
+            echo "Valkey not ready, sleeping..."
+            sleep 3
+          done
+          echo "Valkey is ready!"
+      {{- if .Values.migrate.enabled }}
+      - name: migrate
+        image: "{{ .Values.imageRegistry }}/{{ .Values.migrate.image.repository }}:{{ .Values.migrate.image.tag }}"
+        imagePullPolicy: {{ include "echophase.appImagePullPolicy" .Values.migrate.image }}
+        args: ["migrate"]
+        envFrom:
+        - configMapRef:
+            name: {{ include "echophase.fullname" . }}-config
+        - secretRef:
+            name: {{ include "echophase.fullname" . }}-secrets
+        resources:
+          {{- toYaml .Values.migrate.resources | nindent 10 }}
+      {{- end }}
+      containers:
+      - name: server
+        image: "{{ .Values.imageRegistry }}/{{ .Values.echophase.image.repository }}:{{ .Values.echophase.image.tag }}"
+        imagePullPolicy: {{ include "echophase.appImagePullPolicy" .Values.echophase.image }}
+        # Keep serving while the pod is taken out of the Service's endpoints;
+        # without the pause, requests routed to it in that window time out.
+        lifecycle:
+          preStop:
+            sleep:
+              seconds: 5
+        ports:
+        - containerPort: {{ .Values.echophase.service.targetPort }}
+          name: http
+        envFrom:
+        - configMapRef:
+            name: {{ include "echophase.fullname" . }}-config
+        - secretRef:
+            name: {{ include "echophase.fullname" . }}-secrets
+        {{- if .Values.echophase.logs.enabled }}
+        volumeMounts:
+        - name: logs
+          mountPath: /app/Logs
+        {{- end }}
+        {{- if .Values.echophase.healthcheck.enabled }}
+        livenessProbe:
+          httpGet:
+            path: {{ .Values.echophase.healthcheck.path }}
+            port: http
+          initialDelaySeconds: {{ .Values.echophase.healthcheck.initialDelaySeconds }}
+          periodSeconds: {{ .Values.echophase.healthcheck.periodSeconds }}
+          timeoutSeconds: {{ .Values.echophase.healthcheck.timeoutSeconds }}
+          failureThreshold: {{ .Values.echophase.healthcheck.failureThreshold }}
+        readinessProbe:
+          httpGet:
+            # Ready only after warm-up (keys, EF model, connections, JIT).
+            path: {{ .Values.echophase.healthcheck.readinessPath }}
+            port: http
+          initialDelaySeconds: {{ .Values.echophase.healthcheck.initialDelaySeconds }}
+          periodSeconds: {{ .Values.echophase.healthcheck.periodSeconds }}
+          timeoutSeconds: {{ .Values.echophase.healthcheck.timeoutSeconds }}
+          failureThreshold: {{ .Values.echophase.healthcheck.failureThreshold }}
+        {{- end }}
+        resources:
+          {{- toYaml .Values.echophase.resources | nindent 10 }}
+      {{- if .Values.echophase.logs.enabled }}
+      volumes:
+      - name: logs
+        persistentVolumeClaim:
+          claimName: {{ include "echophase.fullname" . }}-logs-pvc
+      {{- end }}

@@ -1,0 +1,22 @@
+# EchoPhase deploy
+
+What runs in the cluster, reconciled by [Flux](https://fluxcd.io):
+
+| Path | What |
+|---|---|
+| `clusters/dusty/` | Flux entry point for the k3s node `dusty` (source, kustomizations) |
+| `apps/echophase/` | the EchoPhase `HelmRelease`, image tags, encrypted passwords |
+| `charts/echophase/` | the Helm chart |
+
+Releasing is a commit here: Woodpecker writes the new image tag into
+`apps/echophase/helmrelease.yaml` (the lines marked `# ci:image-tag`) and
+Flux upgrades the release within a minute. Rolling back is `git revert`.
+
+Passwords are in `apps/echophase/secret-values.enc.yaml`, encrypted with
+[SOPS](https://getsops.io) for the age key in `.sops.yaml`:
+
+```sh
+sops apps/echophase/secret-values.enc.yaml   # edit (needs the private age key)
+```
+
+Flux decrypts with the same key, stored in the cluster as `flux-system/sops-age`.

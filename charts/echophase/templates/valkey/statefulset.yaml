@@ -1,0 +1,89 @@
+{{- if .Values.valkey.enabled }}
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ include "echophase.fullname" . }}-valkey
+  labels:
+    {{- include "echophase.labels" . | nindent 4 }}
+    app.kubernetes.io/component: valkey
+spec:
+  replicas: 1
+  serviceName: {{ include "echophase.fullname" . }}-valkey
+  selector:
+    matchLabels:
+      {{- include "echophase.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: valkey
+  template:
+    metadata:
+      labels:
+        {{- include "echophase.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: valkey
+    spec:
+      containers:
+      - name: valkey
+        image: "{{ .Values.valkey.image.repository }}:{{ .Values.valkey.image.tag }}"
+        imagePullPolicy: {{ include "echophase.imagePullPolicy" . }}
+        command:
+        - valkey-server
+        - --requirepass
+        - $(VALKEY_PASSWORD)
+        ports:
+        - containerPort: {{ .Values.valkey.service.port }}
+          name: valkey
+        env:
+        - name: VALKEY_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: {{ include "echophase.fullname" . }}-secrets
+              key: VALKEY_PASSWORD
+        volumeMounts:
+        - name: valkey-data
+          mountPath: /data
+        {{- if .Values.valkey.healthcheck.enabled }}
+        livenessProbe:
+          exec:
+            command:
+            - valkey-cli
+            - -a
+            - $(VALKEY_PASSWORD)
+            - PING
+          initialDelaySeconds: {{ .Values.valkey.healthcheck.initialDelaySeconds }}
+          periodSeconds: {{ .Values.valkey.healthcheck.periodSeconds }}
+          timeoutSeconds: {{ .Values.valkey.healthcheck.timeoutSeconds }}
+          failureThreshold: {{ .Values.valkey.healthcheck.failureThreshold }}
+        readinessProbe:
+          exec:
+            command:
+            - valkey-cli
+            - -a
+            - $(VALKEY_PASSWORD)
+            - PING
+          initialDelaySeconds: {{ .Values.valkey.healthcheck.initialDelaySeconds }}
+          periodSeconds: {{ .Values.valkey.healthcheck.periodSeconds }}
+          timeoutSeconds: {{ .Values.valkey.healthcheck.timeoutSeconds }}
+          failureThreshold: {{ .Values.valkey.healthcheck.failureThreshold }}
+        {{- end }}
+        resources:
+          {{- toYaml .Values.valkey.resources | nindent 10 }}
+      {{- if not .Values.valkey.persistence.enabled }}
+      volumes:
+      - name: valkey-data
+        emptyDir: {}
+      {{- end }}
+  {{- if .Values.valkey.persistence.enabled }}
+  volumeClaimTemplates:
+  - metadata:
+      name: valkey-data
+      annotations:
+        helm.sh/resource-policy: keep
+    spec:
+      accessModes:
+      - ReadWriteOnce
+      {{- if .Values.valkey.persistence.storageClass }}
+      storageClassName: {{ .Values.valkey.persistence.storageClass }}
+      {{- end }}
+      resources:
+        requests:
+          storage: {{ .Values.valkey.persistence.size }}
+  {{- end }}
+{{- end }}

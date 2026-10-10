@@ -1,0 +1,15 @@
+{{- if .Values.echophase.logs.enabled }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "echophase.fullname" . }}-logs-pvc
+  labels:
+    {{- include "echophase.labels" . | nindent 4 }}
+    app.kubernetes.io/component: server
+spec:
+  accessModes:
+  - ReadWriteOnce
+  resources:
+    requests:
+      storage: {{ .Values.echophase.logs.size }}
+{{- end }}

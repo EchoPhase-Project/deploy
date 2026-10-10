@@ -1,0 +1,14 @@
+apiVersion: v2
+name: echophase
+description: EchoPhase application Helm chart
+type: application
+version: 1.0.0
+appVersion: "1.0.0"
+keywords:
+  - echophase
+  - postgres
+  - scylla
+  - valkey
+maintainers:
+  - name: Dusty
+    email: extremal.user@gmail.com

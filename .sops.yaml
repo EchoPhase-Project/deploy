@@ -1,0 +1,7 @@
+# SOPS: files named *.enc.yaml are encrypted for this age key. Flux decrypts
+# them with the private key in Secret flux-system/sops-age; locally sops reads
+# ~/.config/sops/age/keys.txt.
+creation_rules:
+  - path_regex: .*\.enc\.yaml$
+    encrypted_regex: ^(data|stringData)$
+    age: age19ky4ywsseg9h2cdmhrqqnzypa9nknc7r8h9ywv44wj7zfrq7xehqalxm6g

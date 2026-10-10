@@ -1,0 +1,92 @@
+{{- if .Values.scylla.enabled }}
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ include "echophase.fullname" . }}-scylla
+  labels:
+    {{- include "echophase.labels" . | nindent 4 }}
+    app.kubernetes.io/component: scylla
+spec:
+  serviceName: {{ include "echophase.fullname" . }}-scylla
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "echophase.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: scylla
+  template:
+    metadata:
+      labels:
+        {{- include "echophase.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: scylla
+    spec:
+      containers:
+      - name: scylla
+        image: "{{ .Values.scylla.image.repository }}:{{ .Values.scylla.image.tag }}"
+        imagePullPolicy: {{ include "echophase.imagePullPolicy" . }}
+        args:
+        - --cluster-name={{ .Values.scylla.clusterName }}
+        - --seeds={{ printf "%s-scylla-0.%s-scylla.%s.svc.cluster.local" (include "echophase.fullname" .) (include "echophase.fullname" .) .Release.Namespace }}
+        - --smp=1
+        - --memory=2G
+        - --overprovisioned=1
+        - --api-address=0.0.0.0
+        ports:
+        - containerPort: {{ .Values.scylla.service.port }}
+          name: cql
+        - containerPort: 7000
+          name: intra-node
+        - containerPort: 7001
+          name: tls-intra-node
+        - containerPort: 9160
+          name: thrift
+        - containerPort: 10000
+          name: rest
+        env:
+        - name: SCYLLA_CLUSTER_NAME
+          value: {{ .Values.scylla.clusterName | quote }}
+        - name: POD_IP
+          valueFrom:
+            fieldRef:
+              fieldPath: status.podIP
+        volumeMounts:
+        - name: scylla-data
+          mountPath: /var/lib/scylla
+        {{- if .Values.scylla.healthcheck.enabled }}
+        livenessProbe:
+          exec:
+            command:
+            - /bin/bash
+            - -c
+            - nodetool status | grep -E "^UN\s+${POD_IP}"
+          initialDelaySeconds: {{ .Values.scylla.healthcheck.initialDelaySeconds }}
+          periodSeconds: {{ .Values.scylla.healthcheck.periodSeconds }}
+          timeoutSeconds: {{ .Values.scylla.healthcheck.timeoutSeconds }}
+          failureThreshold: {{ .Values.scylla.healthcheck.failureThreshold }}
+        readinessProbe:
+          exec:
+            command:
+            - /bin/bash
+            - -c
+            - nodetool status | grep -E "^UN\s+${POD_IP}"
+          initialDelaySeconds: {{ .Values.scylla.healthcheck.initialDelaySeconds }}
+          periodSeconds: {{ .Values.scylla.healthcheck.periodSeconds }}
+          timeoutSeconds: {{ .Values.scylla.healthcheck.timeoutSeconds }}
+          failureThreshold: {{ .Values.scylla.healthcheck.failureThreshold }}
+        {{- end }}
+        resources:
+          {{- toYaml .Values.scylla.resources | nindent 10 }}
+  {{- if .Values.scylla.persistence.enabled }}
+  volumeClaimTemplates:
+  - metadata:
+      name: scylla-data
+    spec:
+      accessModes:
+      - ReadWriteOnce
+      {{- if .Values.scylla.persistence.storageClass }}
+      storageClassName: {{ .Values.scylla.persistence.storageClass }}
+      {{- end }}
+      resources:
+        requests:
+          storage: {{ .Values.scylla.persistence.size }}
+  {{- end }}
+{{- end }}
