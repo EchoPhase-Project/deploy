@@ -36,7 +36,7 @@ helm upgrade --install woodpecker oci://ghcr.io/woodpecker-ci/helm/woodpecker --
     --set-string "server.env.WOODPECKER_HOST=$WOODPECKER_SERVER" \
     --set-string "server.env.WOODPECKER_EXPERT_WEBHOOK_HOST=$(webhook_host)" \
     --set-string "server.env.WOODPECKER_ADMIN=$WOODPECKER_ADMIN_USER" \
-    --set-string "server.env.WOODPECKER_REPO_OWNERS=$WOODPECKER_REPO_OWNERS" \
+    --set-string "server.env.WOODPECKER_REPO_OWNERS=${WOODPECKER_REPO_OWNERS//,/\\,}" \
     --wait
 echo "UI: $WOODPECKER_SERVER (after mise run tailscale:expose)"
 '''
@@ -71,4 +71,30 @@ set -euo pipefail
 port=$(echo "${WOODPECKER_SERVER:-}" | sed -nE 's#^https://[^/:]+:([0-9]+).*#\1#p')
 tailscale funnel --https=8443 --set-path=/api/hook off
 if [ -n "$port" ]; then tailscale serve --https="$port" off; fi
+'''
+
+# The release steps of server and webapp push image tags to this repository
+# over SSH: one write deploy key, kept as a Woodpecker org secret (deploy_key)
+# so both repositories share it. Rerun to rotate; the old key is removed.
+["woodpecker:deploy-key"]
+description = "Create (or rotate) the write deploy key of this repo and the Woodpecker org secret deploy_key"
+usage = '''
+flag "--org <org>" default="EchoPhase-Project" help="GitHub org owning this repo and the Woodpecker repos"
+'''
+run = '''
+#!/usr/bin/env bash
+set -euo pipefail
+: "${WOODPECKER_SERVER:?set it in mise.local.toml}" "${WOODPECKER_TOKEN:?set it in mise.local.toml}"
+org=$usage_org title="Woodpecker CI ($org)"
+dir=$(mktemp -d); trap 'rm -rf "$dir"' EXIT
+ssh-keygen -q -t ed25519 -N '' -C "woodpecker@$org" -f "$dir/key"
+old=$(gh api "repos/$org/deploy/keys" -q ".[] | select(.title == \"$title\") | .id")
+gh api "repos/$org/deploy/keys" -f title="$title" -f key="$(cat "$dir/key.pub")" -F read_only=false -q '"deploy key \(.id) added"'
+wp="woodpecker-cli --disable-update-check"
+if $wp org secret show --organization "$org" --name deploy_key >/dev/null 2>&1; then
+    $wp org secret update --organization "$org" --name deploy_key --value @"$dir/key" --event push --event manual
+else
+    $wp org secret add --organization "$org" --name deploy_key --value @"$dir/key" --event push --event manual
+fi
+for id in $old; do gh api -X DELETE "repos/$org/deploy/keys/$id" && echo "old deploy key $id removed"; done
 '''
