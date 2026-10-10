@@ -1,0 +1,4 @@
+# Conventional commits (cocogitto); `release` is the commit CI makes when it
+# bumps an image tag (mise run release:bump).
+[commit_types]
+release = { changelog_title = "Releases" }
