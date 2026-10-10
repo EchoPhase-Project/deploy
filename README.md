@@ -6,6 +6,7 @@ What runs in the cluster, reconciled by [Flux](https://fluxcd.io):
 |---|---|
 | `clusters/dusty/` | Flux entry point for the k3s node `dusty` (source, kustomizations) |
 | `apps/echophase/` | the EchoPhase `HelmRelease` (image tags, encrypted passwords) and the chart version (`chart.yaml`, from [charts](https://github.com/EchoPhase-Project/charts) on GHCR) |
+| `apps/weblate/` | [Weblate](https://weblate.org) for the webapp's translations, with its Postgres and Valkey; host and passwords in `secrets.enc.yaml`. `mise run weblate:expose [--public]` serves it on the node's tailnet name, port 10000 |
 
 Releasing is a commit here: Woodpecker writes the new image tag into
 `apps/echophase/helmrelease.yaml` (the lines marked `# ci:image-tag`) and

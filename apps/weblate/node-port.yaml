@@ -1,0 +1,34 @@
+# The UI on 127.0.0.1:30810 of the node, for `tailscale serve` (mise run
+# weblate:expose), like Woodpecker's: nothing listens on other addresses.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: weblate-node-port
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: weblate-node-port
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: weblate-node-port
+    spec:
+      containers:
+        - name: socat
+          image: alpine/socat:1.8.1.1
+          args:
+            - TCP-LISTEN:8000,fork,reuseaddr
+            - TCP:weblate.weblate.svc:80
+          ports:
+            - containerPort: 8000
+              hostPort: 30810
+              hostIP: 127.0.0.1
+          resources:
+            requests:
+              cpu: 10m
+              memory: 8Mi
+            limits:
+              memory: 64Mi

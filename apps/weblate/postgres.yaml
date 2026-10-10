@@ -1,0 +1,67 @@
+# Weblate's own Postgres. The chart's bundled one is Bitnami's, whose images
+# are no longer published; this is the official image, like EchoPhase's.
+apiVersion: v1
+kind: Service
+metadata:
+  name: weblate-postgres
+spec:
+  selector:
+    app.kubernetes.io/name: weblate-postgres
+  ports:
+    - name: postgres
+      port: 5432
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: weblate-postgres
+spec:
+  serviceName: weblate-postgres
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: weblate-postgres
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: weblate-postgres
+    spec:
+      containers:
+        - name: postgres
+          image: postgres:17.6
+          env:
+            - name: POSTGRES_USER
+              value: weblate
+            - name: POSTGRES_DB
+              value: weblate
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: weblate-secrets
+                  key: POSTGRES_PASSWORD
+            - name: PGDATA
+              value: /var/lib/postgresql/data/pgdata
+          ports:
+            - name: postgres
+              containerPort: 5432
+          readinessProbe:
+            exec:
+              command: ["pg_isready", "-U", "weblate", "-d", "weblate"]
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              memory: 512Mi
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/postgresql/data
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: [ReadWriteOnce]
+        resources:
+          requests:
+            storage: 2Gi

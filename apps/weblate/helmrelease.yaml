@@ -1,0 +1,56 @@
+# Weblate, the translation platform of the webapp (src/static/locales).
+# Passwords, the admin e-mail and the public host are in secrets.enc.yaml.
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: HelmRepository
+metadata:
+  name: weblate
+  namespace: weblate
+spec:
+  interval: 12h
+  url: https://helm.weblate.org
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: weblate
+  namespace: weblate
+spec:
+  interval: 10m
+  timeout: 15m
+  chart:
+    spec:
+      chart: weblate
+      version: 0.5.42
+      sourceRef:
+        kind: HelmRepository
+        name: weblate
+  valuesFrom:
+    - kind: Secret
+      name: weblate-secrets
+      valuesKey: values.yaml
+  values:
+    siteTitle: EchoPhase Weblate
+    adminUser: admin
+    postgresql:
+      enabled: false
+      postgresqlHost: weblate-postgres
+      auth:
+        userName: weblate
+        database: weblate
+    redis:
+      enabled: false
+      redisHost: weblate-valkey
+    extraConfig:
+      # Behind `tailscale serve`, which terminates TLS.
+      WEBLATE_ENABLE_HTTPS: "1"
+      WEBLATE_IP_PROXY_HEADER: HTTP_X_FORWARDED_FOR
+      WEBLATE_REGISTRATION_OPEN: "0"
+      WEBLATE_TIME_ZONE: Europe/Moscow
+    persistence:
+      size: 5Gi
+    resources:
+      requests:
+        cpu: 100m
+        memory: 768Mi
+      limits:
+        memory: 2Gi
