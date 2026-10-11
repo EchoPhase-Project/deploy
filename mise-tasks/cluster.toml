@@ -126,3 +126,28 @@ run = [
   "tailscale serve --https=10000 off",
   "tailscale funnel --https=8443 --set-path=/hooks/ off",
 ]
+
+# Funnel can stop answering from the internet while everything looks fine from
+# inside the tailnet (GitHub webhooks then fail with EOF). This connects to the
+# public Funnel address, as GitHub does; `mise run tailscale:expose` and
+# `weblate:expose` re-apply the configuration, which brought it back once.
+["tailscale:check"]
+description = "Check that the public webhook paths answer through Funnel, as GitHub sees them"
+run = '''
+#!/usr/bin/env bash
+set -euo pipefail
+host=$(tailscale status --json | python3 -c 'import sys,json; print(json.load(sys.stdin)["Self"]["DNSName"].rstrip("."))')
+ip=$(curl -fsS -H 'accept: application/dns-json' "https://cloudflare-dns.com/dns-query?name=$host&type=A" \
+    | python3 -c 'import sys,json; a=json.load(sys.stdin).get("Answer",[]); print(a[0]["data"] if a else "")')
+[ -n "$ip" ] || { echo "no public address for $host: is Funnel on?" >&2; exit 1; }
+status=0
+for path in /api/hook /hooks/github/; do
+    code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 15 --resolve "$host:8443:$ip" -X POST "https://$host:8443$path" || true)
+    case "$code" in
+        000|5??) echo "FAIL $path: $code"; status=1 ;;
+        *) echo "ok   $path: $code" ;;
+    esac
+done
+[ "$status" = 0 ] || echo "Re-apply with: mise run tailscale:expose && mise run weblate:expose" >&2
+exit $status
+'''
