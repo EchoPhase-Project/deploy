@@ -34,6 +34,11 @@ spec:
       image:
         repository: echophase/server
         tag: "0.1.0-20-ga314f7e" # ci:image-tag server
+      # Traces to Tempo, metrics to VictoriaMetrics (apps/monitoring).
+      extraEnv:
+        OTEL_EXPORTER_OTLP_PROTOCOL: http/protobuf
+        OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: http://tempo.monitoring:4318/v1/traces
+        OTEL_EXPORTER_OTLP_METRICS_ENDPOINT: http://victoria-metrics.monitoring:8428/opentelemetry/v1/metrics
     migrate:
       image:
         repository: echophase/server
