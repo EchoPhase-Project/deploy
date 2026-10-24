@@ -1,0 +1,162 @@
+# GlitchTip: errors of the EchoPhase server and webapp (Sentry SDKs). One pod
+# runs web and worker (run-all-in-one.sh, migrations on start); without
+# Valkey its cache and task queue live in its own Postgres. Passwords, the
+# secret key and its tailnet URL are in secrets.enc.yaml (glitchtip-env). UI
+# on the node's 127.0.0.1:30840 for `mise run monitoring:expose`; the webapp
+# forwards browser events to it (its nginx), so ingestion needs no exposure.
+apiVersion: v1
+kind: Service
+metadata:
+  name: glitchtip-postgres
+spec:
+  selector:
+    app.kubernetes.io/name: glitchtip-postgres
+  ports:
+    - name: postgres
+      port: 5432
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: glitchtip-postgres
+spec:
+  serviceName: glitchtip-postgres
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: glitchtip-postgres
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: glitchtip-postgres
+    spec:
+      containers:
+        - name: postgres
+          image: postgres:17.6
+          env:
+            - name: POSTGRES_USER
+              value: glitchtip
+            - name: POSTGRES_DB
+              value: glitchtip
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: glitchtip-env
+                  key: POSTGRES_PASSWORD
+            - name: PGDATA
+              value: /var/lib/postgresql/data/pgdata
+          ports:
+            - name: postgres
+              containerPort: 5432
+          readinessProbe:
+            exec:
+              command: ["pg_isready", "-U", "glitchtip", "-d", "glitchtip"]
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              memory: 512Mi
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/postgresql/data
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: [ReadWriteOnce]
+        resources:
+          requests:
+            storage: 5Gi
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: glitchtip-uploads
+spec:
+  accessModes: [ReadWriteOnce]
+  resources:
+    requests:
+      storage: 2Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: glitchtip
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: glitchtip
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: glitchtip
+    spec:
+      securityContext:
+        fsGroup: 5000
+      containers:
+        - name: glitchtip
+          image: glitchtip/glitchtip:6.2.6
+          command: ["./bin/run-all-in-one.sh"]
+          ports:
+            - name: http
+              containerPort: 8000
+          env:
+            - name: PORT
+              value: "8000"
+            # No Valkey: cache and task broker in Postgres.
+            - name: VALKEY_URL
+              value: ""
+            - name: MEDIA_ROOT
+              value: /code/uploads
+            - name: ENABLE_USER_REGISTRATION
+              value: "false"
+            - name: ENABLE_ORGANIZATION_CREATION
+              value: "false"
+            # No mail server: invitations and alerts by mail are not sent.
+            - name: EMAIL_URL
+              value: consolemail://
+            - name: DEFAULT_FROM_EMAIL
+              value: glitchtip@echophase.invalid
+            - name: GLITCHTIP_MAX_EVENT_LIFE_DAYS
+              value: "90"
+            - name: TIME_ZONE
+              value: Europe/Moscow
+          envFrom:
+            - secretRef:
+                name: glitchtip-env
+          volumeMounts:
+            - name: uploads
+              mountPath: /code/uploads
+          readinessProbe:
+            httpGet:
+              path: /_health/
+              port: http
+            initialDelaySeconds: 20
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: 50m
+              memory: 384Mi
+            limits:
+              memory: 1Gi
+      volumes:
+        - name: uploads
+          persistentVolumeClaim:
+            claimName: glitchtip-uploads
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: glitchtip
+spec:
+  selector:
+    app.kubernetes.io/name: glitchtip
+  ports:
+    - name: http
+      port: 80
+      targetPort: http

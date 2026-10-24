@@ -9,4 +9,5 @@ resources:
   - tempo.yaml
   - grafana.yaml
   - gatus.yaml
+  - glitchtip.yaml
   - node-port.yaml

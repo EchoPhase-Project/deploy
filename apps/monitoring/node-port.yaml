@@ -1,4 +1,4 @@
-# Grafana on 127.0.0.1:30820 and Gatus on :30830 of the node, for `tailscale serve` (mise run
+# Grafana on 127.0.0.1:30820, Gatus on :30830 and GlitchTip on :30840 of the node, for `tailscale serve` (mise run
 # monitoring:expose), like Weblate's: nothing listens on other addresses.
 apiVersion: apps/v1
 kind: Deployment
@@ -58,6 +58,39 @@ spec:
           ports:
             - containerPort: 8080
               hostPort: 30830
+              hostIP: 127.0.0.1
+          resources:
+            requests:
+              cpu: 10m
+              memory: 8Mi
+            limits:
+              memory: 64Mi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: glitchtip-node-port
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: glitchtip-node-port
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: glitchtip-node-port
+    spec:
+      containers:
+        - name: socat
+          image: alpine/socat:1.8.1.1
+          args:
+            - TCP-LISTEN:8000,fork,reuseaddr
+            - TCP:glitchtip.monitoring.svc:80
+          ports:
+            - containerPort: 8000
+              hostPort: 30840
               hostIP: 127.0.0.1
           resources:
             requests:

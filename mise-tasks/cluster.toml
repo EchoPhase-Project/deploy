@@ -128,19 +128,28 @@ run = [
 ]
 
 ["monitoring:expose"]
-description = "Serve Grafana (:10001) and Gatus (:10002) in the tailnet (apps/monitoring)"
+description = "Serve Grafana (:10001), Gatus (:10002) and GlitchTip (:10003) in the tailnet (apps/monitoring)"
 run = [
   "tailscale serve --bg --https=10001 http://127.0.0.1:30820",
   "tailscale serve --bg --https=10002 http://127.0.0.1:30830",
+  "tailscale serve --bg --https=10003 http://127.0.0.1:30840",
   "tailscale serve status",
 ]
 
 ["monitoring:unexpose"]
-description = "Stop serving Grafana and Gatus"
+description = "Stop serving Grafana, Gatus and GlitchTip"
 run = [
   "tailscale serve --https=10001 off",
   "tailscale serve --https=10002 off",
+  "tailscale serve --https=10003 off",
 ]
+
+["monitoring:glitchtip-password"]
+description = "Print GlitchTip's admin login (e-mail and password, from apps/monitoring/secrets.enc.yaml)"
+run = """
+sops --decrypt apps/monitoring/secrets.enc.yaml \
+  | python3 -c 'import sys,yaml; d=[x for x in yaml.safe_load_all(sys.stdin) if x["metadata"]["name"]=="glitchtip-env"][0]["stringData"]; print(d["ADMIN_EMAIL"], d["ADMIN_PASSWORD"])'
+"""
 
 ["monitoring:password"]
 description = "Print Grafana's admin password (decrypted from apps/monitoring/secrets.enc.yaml)"
