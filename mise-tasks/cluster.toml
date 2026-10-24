@@ -47,11 +47,20 @@ echo "UI: $WOODPECKER_SERVER (after mise run tailscale:expose)"
 # one included, to Traefik. The UI port is the one in WOODPECKER_SERVER.
 ["traefik:configure"]
 description = "Apply the adjustments of k3s's Traefik (infra/traefik): client addresses kept"
-run = [
-  "kubectl apply -f infra/traefik/helmchartconfig.yaml",
-  "kubectl -n kube-system rollout status deploy/traefik --timeout=180s",
-  "kubectl -n kube-system get svc traefik -o jsonpath='{.spec.externalTrafficPolicy}'",
-]
+run = """
+#!/usr/bin/env bash
+set -euo pipefail
+kubectl apply -f infra/traefik/helmchartconfig.yaml
+# k3s applies it in a helm-install-traefik job of its own, a little later.
+for _ in $(seq 60); do
+    policy=$(kubectl -n kube-system get svc traefik -o jsonpath='{.spec.externalTrafficPolicy}')
+    [ "$policy" = Local ] && break
+    sleep 5
+done
+kubectl -n kube-system rollout status deploy/traefik --timeout=180s
+echo "externalTrafficPolicy: $policy"
+[ "$policy" = Local ]
+"""
 
 ["tailscale:expose"]
 description = "Serve Woodpecker in the tailnet; open only its webhook path to the internet"
