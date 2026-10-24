@@ -20,6 +20,13 @@ data:
       interval: 1m
       client:
         timeout: 10s
+    # Funnel answers on the node's public addresses; inside the cluster the
+    # name resolves to its tailnet address, where nothing listens on 8443.
+    x-public: &public
+      interval: 1m
+      client:
+        timeout: 15s
+        dns-resolver: tcp://1.1.1.1:53
     endpoints:
       # EchoPhase
       - <<: *default
@@ -54,25 +61,26 @@ data:
         conditions: ["[CONNECTED] == true"]
 
       # Public, through Funnel: what GitHub's webhooks need.
-      - <<: *default
+      - <<: *public
         name: woodpecker webhook
         group: public
         url: https://${FUNNEL_HOST}:8443/api/hook
         method: POST
-        conditions: ["[STATUS] < 500"]
-      - <<: *default
+        conditions: ["[CONNECTED] == true", "[STATUS] < 500"]
+      - <<: *public
         name: weblate webhook
         group: public
         url: https://${FUNNEL_HOST}:8443/hooks/github/
         method: POST
-        conditions: ["[STATUS] < 500"]
+        conditions: ["[CONNECTED] == true", "[STATUS] < 500"]
 
       # Platform
       - <<: *default
         name: woodpecker
         group: platform
         url: http://woodpecker-server.woodpecker.svc/healthz
-        conditions: ["[STATUS] == 200"]
+        # 204 No Content when healthy.
+        conditions: ["[STATUS] < 300"]
       - <<: *default
         name: registry
         group: platform
@@ -128,7 +136,7 @@ spec:
         app.kubernetes.io/name: gatus
       annotations:
         # Restart when the checks change.
-        checksum/config: "1"
+        checksum/config: "2"
     spec:
       containers:
         - name: gatus
