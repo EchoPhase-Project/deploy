@@ -151,6 +151,38 @@ sops --decrypt apps/monitoring/secrets.enc.yaml \
   | python3 -c 'import sys,yaml; d=[x for x in yaml.safe_load_all(sys.stdin) if x["metadata"]["name"]=="glitchtip-env"][0]["stringData"]; print(d["ADMIN_EMAIL"], d["ADMIN_PASSWORD"])'
 """
 
+# Once after GlitchTip's first start (again is harmless): the admin from
+# glitchtip-env, organization EchoPhase, projects server and webapp. Prints
+# their DSNs, as the server (in the cluster) and the webapp use them.
+["monitoring:glitchtip-bootstrap"]
+description = "Create GlitchTip's admin, organization and projects; print the DSNs"
+run = """
+kubectl -n monitoring exec -i deploy/glitchtip -- python manage.py shell <<'PY'
+import os
+from django.contrib.auth import get_user_model
+from apps.organizations_ext.constants import OrganizationUserRole
+from apps.organizations_ext.models import Organization
+from apps.projects.models import Project, ProjectKey
+
+User = get_user_model()
+email, password = os.environ["ADMIN_EMAIL"], os.environ["ADMIN_PASSWORD"]
+user = User.objects.filter(email=email).first()
+if user is None:
+    user = User.objects.create_superuser(email=email, password=password)
+org = Organization.objects.filter(slug="echophase").first()
+if org is None:
+    org = Organization.objects.create(name="EchoPhase", slug="echophase")
+    org.add_user(user, role=OrganizationUserRole.OWNER)
+for name, platform in [("server", "csharp-aspnetcore"), ("webapp", "javascript")]:
+    project = Project.objects.filter(organization=org, name=name).first()
+    if project is None:
+        project = Project.objects.create(organization=org, name=name, platform=platform)
+    key = ProjectKey.objects.filter(project=project, is_active=True).first() or ProjectKey.objects.create(project=project)
+    internal = f"http://{key.public_key_hex}@glitchtip.monitoring.svc/{project.id}"
+    print(f"{name}: project {project.id}, DSN {internal}")
+PY
+"""
+
 ["monitoring:password"]
 description = "Print Grafana's admin password (decrypted from apps/monitoring/secrets.enc.yaml)"
 run = "sops --decrypt --extract '[\"stringData\"][\"admin-password\"]' apps/monitoring/secrets.enc.yaml; echo"

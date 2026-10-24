@@ -108,6 +108,11 @@ data:
         group: monitoring
         url: http://grafana.monitoring.svc/api/health
         conditions: ["[STATUS] == 200"]
+      - <<: *default
+        name: glitchtip
+        group: monitoring
+        url: http://glitchtip.monitoring.svc/_health/
+        conditions: ["[STATUS] == 200"]
 ---
 apiVersion: v1
 kind: PersistentVolumeClaim
@@ -136,7 +141,7 @@ spec:
         app.kubernetes.io/name: gatus
       annotations:
         # Restart when the checks change.
-        checksum/config: "2"
+        checksum/config: "3"
     spec:
       containers:
         - name: gatus
