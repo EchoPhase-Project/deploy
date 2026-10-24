@@ -4,8 +4,8 @@
 Kept per repository:
   - the newest KEEP build tags (by the image's creation time),
   - "latest", release tags (1.2.3) and BuildKit cache tags (*buildcache),
-  - every tag a revision of the Helm release still references, so
-    `mise run helm:rollback` always has its images,
+  - every tag a revision of the Helm release still references, so a rollback
+    (`git revert` of a release commit, or `helm rollback`) finds its images,
   - anything sharing a digest with a kept tag: the API deletes manifests, not
     tags, and every tag on that manifest would go with it.
 
