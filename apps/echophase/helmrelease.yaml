@@ -39,11 +39,19 @@ spec:
         OTEL_EXPORTER_OTLP_PROTOCOL: http/protobuf
         OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: http://tempo.monitoring:4318/v1/traces
         OTEL_EXPORTER_OTLP_METRICS_ENDPOINT: http://victoria-metrics.monitoring:8428/opentelemetry/v1/metrics
+        # Errors to GlitchTip, project "server" (mise run monitoring:glitchtip-bootstrap).
+        SENTRY_DSN: http://4277db01f5144b61b7b97eaaa9df7321@glitchtip.monitoring.svc/1
     migrate:
       image:
         repository: echophase/server
         tag: "0.1.0-25-g3fc602b" # ci:image-tag server
     webapp:
+      # Browser errors to GlitchTip, project "webapp", through the webapp's
+      # nginx (/errors), so GlitchTip stays in the tailnet.
+      extraEnv:
+        SENTRY_DSN: http://2d93507bf8e04411ae8c136c4e8edbf7@glitchtip.monitoring.svc/2
+        ERRORS_UPSTREAM: glitchtip.monitoring.svc.cluster.local:80
+        ERRORS_PROJECT: "2"
       image:
         repository: echophase/webapp
         tag: "0.1.0-20-g5668a0b" # ci:image-tag webapp
