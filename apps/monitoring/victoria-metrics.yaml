@@ -20,6 +20,14 @@ spec:
       # Service victoria-metrics:8428.
       fullnameOverride: victoria-metrics
       retentionPeriod: 90d
+      # The chart's defaults, plus OTLP metric names as Prometheus has them
+      # (http_server_request_duration_seconds_bucket, not
+      # http.server.request.duration), which the dashboards query.
+      extraArgs:
+        envflag.enable: true
+        envflag.prefix: VM_
+        loggerFormat: json
+        opentelemetry.usePrometheusNaming: true
       persistentVolume:
         enabled: true
         size: 20Gi
