@@ -33,11 +33,11 @@ spec:
     echophase:
       image:
         repository: echophase/server
-        tag: "0.1.0-14-g3ea1097" # ci:image-tag server
+        tag: "0.1.0-20-ga314f7e" # ci:image-tag server
     migrate:
       image:
         repository: echophase/server
-        tag: "0.1.0-14-g3ea1097" # ci:image-tag server
+        tag: "0.1.0-20-ga314f7e" # ci:image-tag server
     webapp:
       image:
         repository: echophase/webapp
