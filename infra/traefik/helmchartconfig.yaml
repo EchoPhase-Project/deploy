@@ -1,0 +1,17 @@
+# k3s's own Traefik (the HelmChart in kube-system), adjusted: its
+# LoadBalancer keeps the client's address (externalTrafficPolicy Local)
+# instead of the node's after k3s's service load balancer forwards it. The
+# webapp's nginx then sees real visitors in X-Forwarded-For: its per-address
+# rate limits (sign-in, API, /errors, /stats) and Umami's visitor counts
+# stay per visitor, not one bucket for everyone. Single node, so Local
+# loses nothing. Applied by `mise run traefik:configure`.
+apiVersion: helm.cattle.io/v1
+kind: HelmChartConfig
+metadata:
+  name: traefik
+  namespace: kube-system
+spec:
+  valuesContent: |-
+    service:
+      spec:
+        externalTrafficPolicy: Local

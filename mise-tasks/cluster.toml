@@ -45,6 +45,14 @@ echo "UI: $WOODPECKER_SERVER (after mise run tailscale:expose)"
 # plus HTTPS certificates and the funnel node attribute in the tailnet.
 # Not port 443: k3s's servicelb DNATs 443 on every node address, the tailscale
 # one included, to Traefik. The UI port is the one in WOODPECKER_SERVER.
+["traefik:configure"]
+description = "Apply the adjustments of k3s's Traefik (infra/traefik): client addresses kept"
+run = [
+  "kubectl apply -f infra/traefik/helmchartconfig.yaml",
+  "kubectl -n kube-system rollout status deploy/traefik --timeout=180s",
+  "kubectl -n kube-system get svc traefik -o jsonpath='{.spec.externalTrafficPolicy}'",
+]
+
 ["tailscale:expose"]
 description = "Serve Woodpecker in the tailnet; open only its webhook path to the internet"
 run = '''

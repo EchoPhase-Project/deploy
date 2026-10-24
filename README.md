@@ -6,6 +6,7 @@ What runs in the cluster, reconciled by [Flux](https://fluxcd.io):
 |---|---|
 | `clusters/dusty/` | Flux entry point for the k3s node `dusty` (source, kustomizations) |
 | `apps/echophase/` | the EchoPhase `HelmRelease` (image tags, encrypted passwords) and the chart version (`chart.yaml`, from [charts](https://github.com/EchoPhase-Project/charts) on GHCR) |
+| `infra/traefik/` | adjustments of k3s's Traefik: client addresses kept (`externalTrafficPolicy: Local`), so per-visitor rate limits and statistics work; `mise run traefik:configure` applies it |
 | `apps/weblate/` | [Weblate](https://weblate.org) for the webapp's translations, with its Postgres and Valkey; host and passwords in `secrets.enc.yaml`. `mise run weblate:expose [--public]` serves it on the node's tailnet name, port 10000 |
 | `apps/monitoring/` | VictoriaMetrics (metrics, with node-exporter and kube-state-metrics), Tempo (traces) and Grafana over both; the EchoPhase server sends them OTLP. Gatus checks every service (and the public webhook paths) each minute. GlitchTip collects the server's and the webapp's errors (`monitoring:glitchtip-bootstrap` creates its admin and projects once), Umami the webapp's visit statistics (`monitoring:umami-bootstrap` sets its admin password and website once). `mise run monitoring:expose` serves Grafana on the node's tailnet name, port 10001, Gatus on 10002, GlitchTip on 10003 and Umami on 10004; `monitoring:password`, `monitoring:glitchtip-password` and `monitoring:umami-password` print the admin logins |
 
