@@ -185,6 +185,52 @@ for name, platform in [("server", "csharp-aspnetcore"), ("webapp", "javascript")
 PY
 """
 
+# Once after Umami's first start (again is harmless): replaces the default
+# admin password (umami) with umami-env's and creates the website EchoPhase.
+# Prints its id, the webapp's UMAMI_WEBSITE_ID.
+["monitoring:umami-bootstrap"]
+description = "Set Umami's admin password, create the website EchoPhase; print its id"
+run = """
+#!/usr/bin/env bash
+set -euo pipefail
+password=$(sops --decrypt apps/monitoring/secrets.enc.yaml \\
+  | python3 -c 'import sys,yaml; print([x for x in yaml.safe_load_all(sys.stdin) if x["metadata"]["name"]=="umami-env"][0]["stringData"]["ADMIN_PASSWORD"])')
+kubectl -n monitoring port-forward svc/umami 18030:80 >/dev/null 2>&1 &
+forward=$!
+trap 'kill $forward 2>/dev/null || true' EXIT
+until curl -s -o /dev/null http://127.0.0.1:18030/api/heartbeat; do sleep 1; done
+UMAMI_PASSWORD="$password" python3 - <<'PY'
+import json, os, urllib.request
+
+base = "http://127.0.0.1:18030/api"
+
+def call(method, path, body=None, token=None):
+    req = urllib.request.Request(base + path, method=method, data=json.dumps(body).encode() if body is not None else None,
+                                 headers={"Content-Type": "application/json", **({"Authorization": f"Bearer {token}"} if token else {})})
+    with urllib.request.urlopen(req) as res:
+        return json.loads(res.read() or b"null")
+
+def login(password):
+    try:
+        return call("POST", "/auth/login", {"username": "admin", "password": password})["token"]
+    except urllib.error.HTTPError:
+        return None
+
+password = os.environ["UMAMI_PASSWORD"]
+token = login(password)
+if token is None:
+    token = login("umami") or exit("admin login failed with both passwords")
+    call("POST", "/me/password", {"currentPassword": "umami", "newPassword": password}, token)
+    token = login(password)
+    print("admin password set")
+sites = call("GET", "/websites", token=token)
+sites = sites.get("data", sites) if isinstance(sites, dict) else sites
+site = next((w for w in sites if w["name"] == "EchoPhase"), None) or \
+    call("POST", "/websites", {"name": "EchoPhase", "domain": "echophase.app"}, token)
+print("website EchoPhase:", site["id"])
+PY
+"""
+
 ["monitoring:umami-password"]
 description = "Print Umami's admin login (user admin, from apps/monitoring/secrets.enc.yaml)"
 run = """

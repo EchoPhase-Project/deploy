@@ -52,6 +52,10 @@ spec:
         SENTRY_DSN: http://2d93507bf8e04411ae8c136c4e8edbf7@glitchtip.monitoring.svc/2
         ERRORS_UPSTREAM: glitchtip.monitoring.svc.cluster.local:80
         ERRORS_PROJECT: "2"
+        # Visit statistics to Umami, website EchoPhase (mise run
+        # monitoring:umami-bootstrap), also through the webapp's nginx (/stats/).
+        UMAMI_UPSTREAM: umami.monitoring.svc.cluster.local:80
+        UMAMI_WEBSITE_ID: 15b4cdc0-dce6-49dc-8444-6fe7dfafd7e4
       image:
         repository: echophase/webapp
         tag: "0.1.0-24-gb776560" # ci:image-tag webapp
