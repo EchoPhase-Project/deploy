@@ -39,15 +39,16 @@ spec:
         OTEL_EXPORTER_OTLP_PROTOCOL: http/protobuf
         OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: http://tempo.monitoring:4318/v1/traces
         OTEL_EXPORTER_OTLP_METRICS_ENDPOINT: http://victoria-metrics.monitoring:8428/opentelemetry/v1/metrics
-        # Errors to GlitchTip, project "server" (mise run monitoring:glitchtip-bootstrap).
-        SENTRY_DSN: http://4277db01f5144b61b7b97eaaa9df7321@glitchtip.monitoring.svc/1
+        # Errors to GlitchTip, project "server" (mise run monitoring:glitchtip-bootstrap):
+        # SENTRY_DSN is in secret-values.enc.yaml, merged into this map.
     migrate:
       image:
         repository: echophase/server
         tag: "0.2.0-4-g665995b" # ci:image-tag server
     webapp:
       # Browser errors to GlitchTip, project "webapp", through the webapp's
-      # nginx (/errors), so GlitchTip stays in the tailnet.
+      # nginx (/errors), so GlitchTip stays in the tailnet. This DSN is public by
+      # design (browsers get it from /config.json), unlike the server's.
       extraEnv:
         SENTRY_DSN: http://2d93507bf8e04411ae8c136c4e8edbf7@glitchtip.monitoring.svc/2
         ERRORS_UPSTREAM: glitchtip.monitoring.svc.cluster.local:80
