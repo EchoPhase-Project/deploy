@@ -1,0 +1,82 @@
+# Grafana over VictoriaMetrics and Tempo, with dashboards for the node,
+# Kubernetes and ASP.NET Core. The admin password is in secrets.enc.yaml; the
+# UI is on the node's 127.0.0.1:30820 (node-port.yaml) for `mise run
+# monitoring:expose`.
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: grafana
+spec:
+  interval: 10m
+  chart:
+    spec:
+      chart: grafana
+      version: 13.5.0
+      sourceRef:
+        kind: HelmRepository
+        name: grafana-community
+  values:
+    fullnameOverride: grafana
+    admin:
+      existingSecret: grafana-admin
+      userKey: admin-user
+      passwordKey: admin-password
+    persistence:
+      enabled: true
+      size: 2Gi
+    resources:
+      requests:
+        cpu: 20m
+        memory: 128Mi
+      limits:
+        memory: 512Mi
+    grafana.ini:
+      analytics:
+        reporting_enabled: false
+        check_for_updates: false
+      users:
+        allow_sign_up: false
+    datasources:
+      datasources.yaml:
+        apiVersion: 1
+        datasources:
+          - name: VictoriaMetrics
+            uid: victoria-metrics
+            type: prometheus
+            url: http://victoria-metrics:8428
+            isDefault: true
+          - name: Tempo
+            uid: tempo
+            type: tempo
+            url: http://tempo:3200
+            jsonData:
+              # From a span to the metrics of its service.
+              tracesToMetrics:
+                datasourceUid: victoria-metrics
+    dashboardProviders:
+      dashboardproviders.yaml:
+        apiVersion: 1
+        providers:
+          - name: default
+            folder: ""
+            type: file
+            options:
+              path: /var/lib/grafana/dashboards/default
+    dashboards:
+      default:
+        node-exporter:
+          gnetId: 1860
+          revision: 45
+          datasource: VictoriaMetrics
+        kubernetes-global:
+          gnetId: 15757
+          revision: 43
+          datasource: VictoriaMetrics
+        kubernetes-pods:
+          gnetId: 15760
+          revision: 41
+          datasource: VictoriaMetrics
+        aspnetcore:
+          gnetId: 19924
+          revision: 5
+          datasource: VictoriaMetrics

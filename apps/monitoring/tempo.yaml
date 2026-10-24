@@ -1,0 +1,35 @@
+# Traces: Tempo (single binary), OTLP on tempo:4317 (gRPC) and :4318 (HTTP);
+# Grafana reads it on :3200. Two weeks of traces on its own volume.
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: tempo
+spec:
+  interval: 10m
+  chart:
+    spec:
+      chart: tempo
+      version: 3.1.0
+      sourceRef:
+        kind: HelmRepository
+        name: grafana-community
+  values:
+    fullnameOverride: tempo
+    tempo:
+      retention: 336h
+      receivers:
+        otlp:
+          protocols:
+            grpc:
+              endpoint: 0.0.0.0:4317
+            http:
+              endpoint: 0.0.0.0:4318
+      resources:
+        requests:
+          cpu: 50m
+          memory: 256Mi
+        limits:
+          memory: 1Gi
+    persistence:
+      enabled: true
+      size: 10Gi

@@ -127,6 +127,21 @@ run = [
   "tailscale funnel --https=8443 --set-path=/hooks/ off",
 ]
 
+["monitoring:expose"]
+description = "Serve Grafana in the tailnet on :10001 (apps/monitoring)"
+run = [
+  "tailscale serve --bg --https=10001 http://127.0.0.1:30820",
+  "tailscale serve status",
+]
+
+["monitoring:unexpose"]
+description = "Stop serving Grafana"
+run = "tailscale serve --https=10001 off"
+
+["monitoring:password"]
+description = "Print Grafana's admin password (decrypted from apps/monitoring/secrets.enc.yaml)"
+run = "sops --decrypt --extract '[\"stringData\"][\"admin-password\"]' apps/monitoring/secrets.enc.yaml; echo"
+
 # Funnel can stop answering from the internet while everything looks fine from
 # inside the tailnet (GitHub webhooks then fail with EOF). This connects to the
 # public Funnel address, as GitHub does; `mise run tailscale:expose` and

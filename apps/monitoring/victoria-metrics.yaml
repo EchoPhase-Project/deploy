@@ -1,0 +1,78 @@
+# Metrics: VictoriaMetrics (single node), Prometheus-compatible. It scrapes
+# the cluster itself (kubelet, cAdvisor, and every service or pod annotated
+# prometheus.io/scrape, node-exporter and kube-state-metrics among them) and
+# takes OTLP metrics at /opentelemetry/v1/metrics (the EchoPhase server).
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: victoria-metrics
+spec:
+  interval: 10m
+  chart:
+    spec:
+      chart: victoria-metrics-single
+      version: 0.48.0
+      sourceRef:
+        kind: HelmRepository
+        name: victoriametrics
+  values:
+    server:
+      # Service victoria-metrics:8428.
+      fullnameOverride: victoria-metrics
+      retentionPeriod: 90d
+      persistentVolume:
+        enabled: true
+        size: 20Gi
+      resources:
+        requests:
+          cpu: 50m
+          memory: 256Mi
+        limits:
+          memory: 1Gi
+      scrape:
+        enabled: true
+---
+# Node CPU, memory, disk and network, for the node dashboard.
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: node-exporter
+spec:
+  interval: 10m
+  chart:
+    spec:
+      chart: prometheus-node-exporter
+      version: 4.59.0
+      sourceRef:
+        kind: HelmRepository
+        name: prometheus-community
+  values:
+    resources:
+      requests:
+        cpu: 10m
+        memory: 32Mi
+      limits:
+        memory: 128Mi
+---
+# Kubernetes objects as metrics (pods, restarts, deployments, PVCs).
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: kube-state-metrics
+spec:
+  interval: 10m
+  chart:
+    spec:
+      chart: kube-state-metrics
+      version: 8.6.0
+      sourceRef:
+        kind: HelmRepository
+        name: prometheus-community
+  values:
+    prometheusScrape: true
+    resources:
+      requests:
+        cpu: 10m
+        memory: 32Mi
+      limits:
+        memory: 256Mi
