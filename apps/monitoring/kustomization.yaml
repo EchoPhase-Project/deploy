@@ -10,4 +10,5 @@ resources:
   - grafana.yaml
   - gatus.yaml
   - glitchtip.yaml
+  - umami.yaml
   - node-port.yaml

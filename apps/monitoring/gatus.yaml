@@ -113,6 +113,11 @@ data:
         group: monitoring
         url: http://glitchtip.monitoring.svc/_health/
         conditions: ["[STATUS] == 200"]
+      - <<: *default
+        name: umami
+        group: monitoring
+        url: http://umami.monitoring.svc/api/heartbeat
+        conditions: ["[STATUS] == 200"]
 ---
 apiVersion: v1
 kind: PersistentVolumeClaim
@@ -141,7 +146,7 @@ spec:
         app.kubernetes.io/name: gatus
       annotations:
         # Restart when the checks change.
-        checksum/config: "3"
+        checksum/config: "4"
     spec:
       containers:
         - name: gatus

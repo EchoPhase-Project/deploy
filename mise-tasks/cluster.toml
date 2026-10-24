@@ -128,20 +128,22 @@ run = [
 ]
 
 ["monitoring:expose"]
-description = "Serve Grafana (:10001), Gatus (:10002) and GlitchTip (:10003) in the tailnet (apps/monitoring)"
+description = "Serve Grafana (:10001), Gatus (:10002), GlitchTip (:10003) and Umami (:10004) in the tailnet (apps/monitoring)"
 run = [
   "tailscale serve --bg --https=10001 http://127.0.0.1:30820",
   "tailscale serve --bg --https=10002 http://127.0.0.1:30830",
   "tailscale serve --bg --https=10003 http://127.0.0.1:30840",
+  "tailscale serve --bg --https=10004 http://127.0.0.1:30850",
   "tailscale serve status",
 ]
 
 ["monitoring:unexpose"]
-description = "Stop serving Grafana, Gatus and GlitchTip"
+description = "Stop serving Grafana, Gatus, GlitchTip and Umami"
 run = [
   "tailscale serve --https=10001 off",
   "tailscale serve --https=10002 off",
   "tailscale serve --https=10003 off",
+  "tailscale serve --https=10004 off",
 ]
 
 ["monitoring:glitchtip-password"]
@@ -181,6 +183,13 @@ for name, platform in [("server", "csharp-aspnetcore"), ("webapp", "javascript")
     internal = f"http://{key.public_key_hex}@glitchtip.monitoring.svc/{project.id}"
     print(f"{name}: project {project.id}, DSN {internal}")
 PY
+"""
+
+["monitoring:umami-password"]
+description = "Print Umami's admin login (user admin, from apps/monitoring/secrets.enc.yaml)"
+run = """
+sops --decrypt apps/monitoring/secrets.enc.yaml \\
+  | python3 -c 'import sys,yaml; d=[x for x in yaml.safe_load_all(sys.stdin) if x["metadata"]["name"]=="umami-env"][0]["stringData"]; print("admin", d["ADMIN_PASSWORD"])'
 """
 
 ["monitoring:password"]
