@@ -128,15 +128,19 @@ run = [
 ]
 
 ["monitoring:expose"]
-description = "Serve Grafana in the tailnet on :10001 (apps/monitoring)"
+description = "Serve Grafana (:10001) and Gatus (:10002) in the tailnet (apps/monitoring)"
 run = [
   "tailscale serve --bg --https=10001 http://127.0.0.1:30820",
+  "tailscale serve --bg --https=10002 http://127.0.0.1:30830",
   "tailscale serve status",
 ]
 
 ["monitoring:unexpose"]
-description = "Stop serving Grafana"
-run = "tailscale serve --https=10001 off"
+description = "Stop serving Grafana and Gatus"
+run = [
+  "tailscale serve --https=10001 off",
+  "tailscale serve --https=10002 off",
+]
 
 ["monitoring:password"]
 description = "Print Grafana's admin password (decrypted from apps/monitoring/secrets.enc.yaml)"

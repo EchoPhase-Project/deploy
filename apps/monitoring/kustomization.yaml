@@ -8,4 +8,5 @@ resources:
   - victoria-metrics.yaml
   - tempo.yaml
   - grafana.yaml
+  - gatus.yaml
   - node-port.yaml

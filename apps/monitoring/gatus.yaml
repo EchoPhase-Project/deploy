@@ -1,0 +1,181 @@
+# Gatus: is everything up, checked from inside the cluster every minute, with
+# history (SQLite on its volume). The public webhook paths are checked through
+# Funnel as GitHub calls them; the tailnet host name is in secrets.enc.yaml
+# (gatus-env). No alerts yet. UI on the node's 127.0.0.1:30830 for
+# `mise run monitoring:expose`; metrics for VictoriaMetrics on /metrics.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: gatus-config
+data:
+  config.yaml: |
+    metrics: true
+    storage:
+      type: sqlite
+      path: /data/gatus.db
+    ui:
+      title: EchoPhase status
+      header: EchoPhase
+    x-default: &default
+      interval: 1m
+      client:
+        timeout: 10s
+    endpoints:
+      # EchoPhase
+      - <<: *default
+        name: server
+        group: echophase
+        url: http://echophase.echophase.svc:8080/health/ready
+        conditions: ["[STATUS] == 200"]
+      - <<: *default
+        name: webapp
+        group: echophase
+        url: http://echophase-webapp.echophase.svc/
+        conditions: ["[STATUS] == 200"]
+      - <<: *default
+        name: api through the webapp
+        group: echophase
+        url: http://echophase-webapp.echophase.svc/api/v1/status
+        conditions: ["[STATUS] == 200", "[BODY].maintenance == false"]
+      - <<: *default
+        name: postgres
+        group: echophase
+        url: tcp://echophase-postgres.echophase.svc:5432
+        conditions: ["[CONNECTED] == true"]
+      - <<: *default
+        name: scylla
+        group: echophase
+        url: tcp://echophase-scylla.echophase.svc:9042
+        conditions: ["[CONNECTED] == true"]
+      - <<: *default
+        name: valkey
+        group: echophase
+        url: tcp://echophase-valkey.echophase.svc:6379
+        conditions: ["[CONNECTED] == true"]
+
+      # Public, through Funnel: what GitHub's webhooks need.
+      - <<: *default
+        name: woodpecker webhook
+        group: public
+        url: https://${FUNNEL_HOST}:8443/api/hook
+        method: POST
+        conditions: ["[STATUS] < 500"]
+      - <<: *default
+        name: weblate webhook
+        group: public
+        url: https://${FUNNEL_HOST}:8443/hooks/github/
+        method: POST
+        conditions: ["[STATUS] < 500"]
+
+      # Platform
+      - <<: *default
+        name: woodpecker
+        group: platform
+        url: http://woodpecker-server.woodpecker.svc/healthz
+        conditions: ["[STATUS] == 200"]
+      - <<: *default
+        name: registry
+        group: platform
+        url: http://registry.registry.svc:5000/v2/
+        conditions: ["[STATUS] == 200"]
+      - <<: *default
+        name: weblate
+        group: platform
+        url: http://weblate.weblate.svc/healthz/
+        conditions: ["[STATUS] == 200"]
+
+      # Monitoring
+      - <<: *default
+        name: victoria-metrics
+        group: monitoring
+        url: http://victoria-metrics.monitoring.svc:8428/health
+        conditions: ["[STATUS] == 200"]
+      - <<: *default
+        name: tempo
+        group: monitoring
+        url: http://tempo.monitoring.svc:3200/ready
+        conditions: ["[STATUS] == 200"]
+      - <<: *default
+        name: grafana
+        group: monitoring
+        url: http://grafana.monitoring.svc/api/health
+        conditions: ["[STATUS] == 200"]
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: gatus-data
+spec:
+  accessModes: [ReadWriteOnce]
+  resources:
+    requests:
+      storage: 1Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: gatus
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: gatus
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: gatus
+      annotations:
+        # Restart when the checks change.
+        checksum/config: "1"
+    spec:
+      containers:
+        - name: gatus
+          image: twinproduction/gatus:v5.37.0
+          ports:
+            - name: http
+              containerPort: 8080
+          env:
+            - name: GATUS_CONFIG_PATH
+              value: /config/config.yaml
+          envFrom:
+            - secretRef:
+                name: gatus-env
+          volumeMounts:
+            - name: config
+              mountPath: /config
+            - name: data
+              mountPath: /data
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              memory: 128Mi
+      volumes:
+        - name: config
+          configMap:
+            name: gatus-config
+        - name: data
+          persistentVolumeClaim:
+            claimName: gatus-data
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: gatus
+  annotations:
+    prometheus.io/scrape: "true"
+    prometheus.io/port: "8080"
+spec:
+  selector:
+    app.kubernetes.io/name: gatus
+  ports:
+    - name: http
+      port: 80
+      targetPort: http
