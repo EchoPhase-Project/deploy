@@ -1,5 +1,11 @@
 # EchoPhase deploy
 
+The project's own instance. To run EchoPhase yourself, use
+[charts](https://github.com/EchoPhase-Project/charts): `helm install`, Docker
+Compose, or its [Flux example](https://github.com/EchoPhase-Project/charts/tree/main/examples/flux)
+for a GitOps repository of your own. This one is tied to the project's cluster
+(its registry, keys and tools) and is not meant to be copied.
+
 What runs in the cluster, reconciled by [Flux](https://fluxcd.io):
 
 | Path | What |
