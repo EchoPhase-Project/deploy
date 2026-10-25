@@ -1,8 +1,9 @@
 # A development copy of EchoPhase in the same cluster, built from local
 # checkouts (uncommitted changes included): release echophase-dev in
 # namespace echophase-dev, at http://dev.echophase.localhost. Flux does not
-# manage it and nothing goes through GitHub. Its own databases; passwords are
-# generated on the first deploy and kept by the release.
+# manage it and nothing goes through GitHub. Its own databases and object
+# storage (SeaweedFS); passwords and S3 keys are generated on the first deploy
+# and kept by the release.
 
 ["dev:deploy"]
 description = "Build server/webapp from local checkouts and deploy them as echophase-dev"
@@ -42,12 +43,19 @@ common=(
     --set webapp.service.type=ClusterIP
     --set webapp.ingress.className=traefik,webapp.ingress.controller=traefik
     --set webapp.ingress.host=dev.echophase.localhost
+    --set s3.enabled=true
 )
+pw() { head -c 24 /dev/urandom | base64 | tr -d '/+='; }
+# S3 keys: generated once, like the passwords (also for a release from before
+# object storage, which has none yet).
+s3_keys=()
+if [ "$exists" = no ] || ! helm get values "$release" -n "$ns" -o json | grep -q S3_ACCESS_KEY_ID; then
+    s3_keys=(--set "secrets.S3_ACCESS_KEY_ID=$(pw),secrets.S3_SECRET_ACCESS_KEY=$(pw)")
+fi
 if [ "$exists" = yes ]; then
-    helm upgrade "$release" "$charts/charts/echophase" "${common[@]}" --reset-then-reuse-values "${set_tags[@]}"
+    helm upgrade "$release" "$charts/charts/echophase" "${common[@]}" --reset-then-reuse-values "${set_tags[@]}" "${s3_keys[@]}"
 else
-    pw() { head -c 24 /dev/urandom | base64 | tr -d '/+='; }
-    helm install "$release" "$charts/charts/echophase" "${common[@]}" "${set_tags[@]}" \
+    helm install "$release" "$charts/charts/echophase" "${common[@]}" "${set_tags[@]}" "${s3_keys[@]}" \
         --set "secrets.POSTGRES_PASSWORD=$(pw),secrets.VALKEY_PASSWORD=$(pw)"
 fi
 echo "http://dev.echophase.localhost"
