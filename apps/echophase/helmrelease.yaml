@@ -33,7 +33,7 @@ spec:
     echophase:
       image:
         repository: echophase/server
-        tag: "0.3.0-4-g9daa76c" # ci:image-tag server
+        tag: "0.4.0-1-ge927c97" # ci:image-tag server
       # Traces to Tempo, metrics to VictoriaMetrics (apps/monitoring).
       extraEnv:
         OTEL_EXPORTER_OTLP_PROTOCOL: http/protobuf
@@ -44,7 +44,7 @@ spec:
     migrate:
       image:
         repository: echophase/server
-        tag: "0.3.0-4-g9daa76c" # ci:image-tag server
+        tag: "0.4.0-1-ge927c97" # ci:image-tag server
     webapp:
       # Browser errors to GlitchTip, project "webapp", through the webapp's
       # nginx (/errors), so GlitchTip stays in the tailnet. This DSN is public by
