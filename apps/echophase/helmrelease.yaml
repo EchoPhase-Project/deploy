@@ -59,7 +59,7 @@ spec:
         UMAMI_WEBSITE_ID: 15b4cdc0-dce6-49dc-8444-6fe7dfafd7e4
       image:
         repository: echophase/webapp
-        tag: "0.5.0-3-geec4f88" # ci:image-tag webapp
+        tag: "0.5.0-4-g35be41d" # ci:image-tag webapp
       service:
         # Traefik's LoadBalancer already holds ports 80/443 on the node.
         type: ClusterIP
