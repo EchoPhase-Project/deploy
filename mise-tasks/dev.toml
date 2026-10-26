@@ -29,7 +29,7 @@ else
     stag="dev-$(cd "$server" && scripts/image-tag.sh)"
     wtag="dev-$(cd "$webapp" && scripts/image-tag.sh)"
     docker build --build-arg ECHOPHASE_VERSION="$stag" -t "$DOCKER_REGISTRY/echophase/server:$stag" "$server/src"
-    docker build -t "$DOCKER_REGISTRY/echophase/webapp:$wtag" "$webapp"
+    docker build --build-arg ECHOPHASE_VERSION="$wtag" -t "$DOCKER_REGISTRY/echophase/webapp:$wtag" "$webapp"
     docker push -q "$DOCKER_REGISTRY/echophase/server:$stag"
     docker push -q "$DOCKER_REGISTRY/echophase/webapp:$wtag"
     set_tags=(--set "echophase.image.tag=$stag,migrate.image.tag=$stag,webapp.image.tag=$wtag")
