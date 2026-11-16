@@ -4,6 +4,9 @@
 # manage it and nothing goes through GitHub. Its own databases and object
 # storage (SeaweedFS); passwords and S3 keys are generated on the first deploy
 # and kept by the release.
+# `dev:deploy --dev-tools` builds the webapp with its developer aids (the /dev
+# pages, the TanStack Query devtools) and tags it <tag>-devtools: for this dev
+# instance only, never for the real one.
 
 ["dev:deploy"]
 description = "Build server/webapp from local checkouts and deploy them as echophase-dev"
@@ -12,6 +15,7 @@ flag "--server-dir <dir>" help="Local checkout of EchoPhase-Project/server" env=
 flag "--webapp-dir <dir>" help="Local checkout of EchoPhase-Project/webapp" env="WEBAPP_DIR" required=#true
 flag "--charts-dir <dir>" help="Local checkout of EchoPhase-Project/charts" env="CHARTS_DIR" required=#true
 flag "--skip-build" help="Deploy the chart with the images of the last dev deploy"
+flag "--dev-tools" help="Build the webapp with its dev tools (/dev pages, TanStack Query devtools); its image tag ends in -devtools. Not with --skip-build"
 '''
 run = '''
 #!/usr/bin/env bash
@@ -22,14 +26,19 @@ server=$(abs "$usage_server_dir"); webapp=$(abs "$usage_webapp_dir"); charts=$(a
 release=echophase-dev ns=echophase-dev
 exists=$(helm status "$release" -n "$ns" >/dev/null 2>&1 && echo yes || echo no)
 
+dev_tools=${usage_dev_tools:-false}
 if [ "${usage_skip_build:-false}" = true ]; then
+    [ "$dev_tools" = true ] && { echo "--dev-tools builds the webapp: it does nothing with --skip-build" >&2; exit 1; }
     [ "$exists" = yes ] || { echo "no $release yet: deploy once without --skip-build" >&2; exit 1; }
     set_tags=()
 else
     stag="dev-$(cd "$server" && scripts/image-tag.sh)"
     wtag="dev-$(cd "$webapp" && scripts/image-tag.sh)"
+    # The dev tools in a tag of their own: never taken for a usual image.
+    [ "$dev_tools" = true ] && wtag="$wtag-devtools"
     docker build --build-arg ECHOPHASE_VERSION="$stag" -t "$DOCKER_REGISTRY/echophase/server:$stag" "$server/src"
-    docker build --build-arg ECHOPHASE_VERSION="$wtag" -t "$DOCKER_REGISTRY/echophase/webapp:$wtag" "$webapp"
+    docker build --build-arg ECHOPHASE_VERSION="$wtag" --build-arg VITE_DEV_TOOLS="$dev_tools" \
+        -t "$DOCKER_REGISTRY/echophase/webapp:$wtag" "$webapp"
     docker push -q "$DOCKER_REGISTRY/echophase/server:$stag"
     docker push -q "$DOCKER_REGISTRY/echophase/webapp:$wtag"
     set_tags=(--set "echophase.image.tag=$stag,migrate.image.tag=$stag,webapp.image.tag=$wtag")
