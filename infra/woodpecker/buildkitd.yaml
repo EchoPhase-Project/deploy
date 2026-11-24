@@ -17,7 +17,9 @@ data:
     [worker.oci]
       gc = true
       # The node's disk is shared with the application: keep the cache small.
-      gckeepstorage = "12GB"
+      # 12GB filled to 10GB within a day while the disk was at 92 %; the
+      # warm layers of both images fit in less.
+      gckeepstorage = "6GB"
     [registry."registry.registry.svc:5000"]
       http = true
       insecure = true
