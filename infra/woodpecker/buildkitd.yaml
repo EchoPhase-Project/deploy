@@ -16,10 +16,11 @@ data:
   buildkitd.toml: |
     [worker.oci]
       gc = true
-      # The node's disk is shared with the application: keep the cache small.
-      # 12GB filled to 10GB within a day while the disk was at 92 %; the
-      # warm layers of both images fit in less.
-      gckeepstorage = "6GB"
+      # The node's disk is shared with the application. The warm layers of
+      # both images (the SDK images, node_modules, the restore and the
+      # publish) take about 8GB: at 6GB a server build pushed out webapp's
+      # npm ci layer (37 s again on the next build of the same commit).
+      gckeepstorage = "15GB"
     [registry."registry.registry.svc:5000"]
       http = true
       insecure = true
