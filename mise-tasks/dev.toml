@@ -7,6 +7,9 @@
 # `dev:deploy --dev-tools` builds the webapp with its developer aids (the /dev
 # pages, the TanStack Query devtools) and tags it <tag>-devtools: for this dev
 # instance only, never for the real one.
+# The images build on the cluster's buildkitd (infra/woodpecker/buildkitd.yaml),
+# as CI's do: one cache with one limit, not a Docker cache on the node that
+# grows without one (it had reached 40 GB).
 
 ["dev:deploy"]
 description = "Build server/webapp from local checkouts and deploy them as echophase-dev"
@@ -36,11 +39,24 @@ else
     wtag="dev-$(cd "$webapp" && scripts/image-tag.sh)"
     # The dev tools in a tag of their own: never taken for a usual image.
     [ "$dev_tools" = true ] && wtag="$wtag-devtools"
-    docker build --build-arg ECHOPHASE_VERSION="$stag" -t "$DOCKER_REGISTRY/echophase/server:$stag" "$server/src"
-    docker build --build-arg ECHOPHASE_VERSION="$wtag" --build-arg VITE_DEV_TOOLS="$dev_tools" \
-        -t "$DOCKER_REGISTRY/echophase/webapp:$wtag" "$webapp"
-    docker push -q "$DOCKER_REGISTRY/echophase/server:$stag"
-    docker push -q "$DOCKER_REGISTRY/echophase/webapp:$wtag"
+    # Through a port-forward: it enters the pod from inside, so buildkitd's
+    # NetworkPolicy (pipeline pods only) stays as it is.
+    bk_port=21234
+    kubectl -n woodpecker port-forward svc/buildkitd "$bk_port:1234" >/dev/null 2>&1 &
+    pf=$!
+    trap 'kill "$pf" 2>/dev/null || true' EXIT
+    export BUILDKIT_HOST="tcp://127.0.0.1:$bk_port"
+    for _ in $(seq 1 20); do buildctl debug workers >/dev/null 2>&1 && break; sleep 0.5; done
+    # buildkitd pushes to the registry's Service; the node pulls the same
+    # images as $DOCKER_REGISTRY (localhost:30500).
+    image() { # context, image name, build args...
+        local ctx=$1 name=$2; shift 2
+        buildctl build --frontend dockerfile.v0 --local context="$ctx" --local dockerfile="$ctx" "$@" \
+            --output "type=image,name=registry.registry.svc:5000/$name,push=true,registry.insecure=true"
+    }
+    image "$server/src" "echophase/server:$stag" --opt build-arg:ECHOPHASE_VERSION="$stag"
+    image "$webapp" "echophase/webapp:$wtag" --opt build-arg:ECHOPHASE_VERSION="$wtag" \
+        --opt build-arg:VITE_DEV_TOOLS="$dev_tools"
     set_tags=(--set "echophase.image.tag=$stag,migrate.image.tag=$stag,webapp.image.tag=$wtag")
 fi
 

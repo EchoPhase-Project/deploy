@@ -8,6 +8,9 @@ flux2 = "2.9.5"
 sops = "3.13.3"
 age = "1.3.2"
 oras = "1.3.4"
+# buildctl, the client of the cluster's buildkitd (dev:deploy builds there);
+# the same version as buildkitd (infra/woodpecker/buildkitd.yaml).
+"github:moby/buildkit" = "0.33.0"
 "github:woodpecker-ci/woodpecker" = { version = "3.18.1", matching_regex = "^woodpecker-cli_" }
 
 # Each keeps a value already set in the environment. Per-machine values and
