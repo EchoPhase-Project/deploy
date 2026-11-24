@@ -1,0 +1,119 @@
+# A long-lived BuildKit daemon for the pipelines' image builds, with its state
+# on a volume: base images and cached layers (npm ci, dotnet restore) stay
+# local, so a build no longer downloads and unpacks them from the registry
+# cache each time. The release steps connect with `buildctl --addr
+# tcp://buildkitd.woodpecker.svc:1234`. Applied by `mise run
+# woodpecker:install`.
+#
+# No TLS: only the pipeline pods may reach it (the NetworkPolicy below), and
+# only repositories the admin enabled run pipelines (WOODPECKER_OPEN=false).
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: buildkitd
+  namespace: woodpecker
+data:
+  buildkitd.toml: |
+    [worker.oci]
+      gc = true
+      # The node's disk is shared with the application: keep the cache small.
+      gckeepstorage = "12GB"
+    [registry."registry.registry.svc:5000"]
+      http = true
+      insecure = true
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: buildkitd
+  namespace: woodpecker
+  labels:
+    app.kubernetes.io/name: buildkitd
+spec:
+  selector:
+    app.kubernetes.io/name: buildkitd
+  ports:
+  - name: buildkit
+    port: 1234
+    targetPort: 1234
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: buildkitd
+  namespace: woodpecker
+  labels:
+    app.kubernetes.io/name: buildkitd
+spec:
+  serviceName: buildkitd
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: buildkitd
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: buildkitd
+    spec:
+      containers:
+      - name: buildkitd
+        image: moby/buildkit:v0.33.0
+        args:
+        - --addr
+        - tcp://0.0.0.0:1234
+        - --addr
+        - unix:///run/buildkit/buildkitd.sock
+        - --config
+        - /etc/buildkit/buildkitd.toml
+        securityContext:
+          # As the release steps today: BuildKit needs it for its sandboxes.
+          privileged: true
+        ports:
+        - name: buildkit
+          containerPort: 1234
+        readinessProbe:
+          exec:
+            command: [buildctl, debug, workers]
+          initialDelaySeconds: 5
+          periodSeconds: 30
+        resources:
+          # The server's image (dotnet publish) needs the most.
+          requests: { cpu: "1", memory: 2Gi }
+          limits: { cpu: "4", memory: 6Gi }
+        volumeMounts:
+        - name: state
+          mountPath: /var/lib/buildkit
+        - name: config
+          mountPath: /etc/buildkit
+      volumes:
+      - name: config
+        configMap:
+          name: buildkitd
+  volumeClaimTemplates:
+  - metadata:
+      name: state
+    spec:
+      accessModes: [ReadWriteOnce]
+      storageClassName: local-path
+      resources:
+        requests:
+          storage: 20Gi
+---
+# Only the pipeline pods may build.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: buildkitd
+  namespace: woodpecker
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: buildkitd
+  policyTypes: [Ingress]
+  ingress:
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: woodpecker-pipelines
+    ports:
+    - port: 1234

@@ -14,6 +14,7 @@ set -euo pipefail
 # GitHub calls the same host on the funnel port, which only serves /api/hook.
 webhook_host() { echo "$WOODPECKER_SERVER" | sed -E 's#^(https://[^/:]+).*#\1:8443#'; }
 kubectl apply -f infra/woodpecker/cluster.yaml
+kubectl apply -f infra/woodpecker/buildkitd.yaml
 kubectl -n woodpecker create secret generic woodpecker-github \
     --from-env-file=<(printf 'WOODPECKER_GITHUB_CLIENT=%s\nWOODPECKER_GITHUB_SECRET=%s\n' \
         "$WOODPECKER_GITHUB_CLIENT" "$WOODPECKER_GITHUB_SECRET") \
