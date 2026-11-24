@@ -77,9 +77,14 @@ spec:
           initialDelaySeconds: 5
           periodSeconds: 30
         resources:
-          # The server's image (dotnet publish) needs the most.
+          # The server's image (dotnet publish) needs the most. MSBuild sees
+          # all 16 cores: with a 4-core limit it was throttled in 3 of 5 CPU
+          # periods (publish 84 s against 14 s in a fresh pod). The page cache
+          # of the layer store counts in the memory limit: 6Gi was reached
+          # about 1000 times a build. Requests stay small: idle, it holds
+          # nothing back.
           requests: { cpu: "1", memory: 2Gi }
-          limits: { cpu: "4", memory: 6Gi }
+          limits: { cpu: "8", memory: 10Gi }
         volumeMounts:
         - name: state
           mountPath: /var/lib/buildkit
