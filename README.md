@@ -43,6 +43,17 @@ if you have them).
   (copy `/etc/rancher/k3s/k3s.yaml`).
 - [Tailscale](https://tailscale.com) on the node, logged in, with HTTPS and
   Funnel allowed for it in the tailnet's settings.
+- k3s's DNS pointed at Tailscale's IPv4 resolver only. Tailscale writes two
+  nameservers into the node's `/etc/resolv.conf`, `100.100.100.100` and an
+  IPv6 one that pods cannot reach; CoreDNS takes both, and then lookups from
+  pods fail at random (clones, image pulls, the server's own calls). Once:
+
+  ```sh
+  printf 'nameserver 100.100.100.100\n' | sudo tee /etc/rancher/k3s/resolv.conf
+  printf 'resolv-conf: /etc/rancher/k3s/resolv.conf\n' | sudo tee -a /etc/rancher/k3s/config.yaml
+  sudo systemctl restart k3s
+  kubectl -n kube-system rollout restart deploy/coredns
+  ```
 - The tools: `mise install --locked` in this checkout, plus `gh` logged in as
   an admin of EchoPhase-Project and Docker.
 - The private age key of `.sops.yaml` at `~/.config/sops/age/keys.txt` (from
