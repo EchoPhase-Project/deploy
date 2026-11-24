@@ -3,11 +3,15 @@
 
 Kept per repository:
   - the newest KEEP build tags (by the image's creation time),
-  - "latest", release tags (1.2.3) and BuildKit cache tags (*buildcache),
+  - "latest" and release tags (1.2.3),
   - every tag a revision of the Helm release still references, so a rollback
     (`git revert` of a release commit, or `helm rollback`) finds its images,
   - anything sharing a digest with a kept tag: the API deletes manifests, not
     tags, and every tag on that manifest would go with it.
+
+Not kept: undated manifests, such as the old BuildKit cache tags
+(*buildcache, from before the pipelines built on buildkitd, which keeps its
+own cache).
 
 Only manifests are deleted; `registry garbage-collect` frees the blobs after.
 
@@ -87,7 +91,7 @@ def main():
             except (KeyError, StopIteration, urllib.error.HTTPError):
                 # Not an image (e.g. a cache manifest): undated, never a build.
                 info[t] = (get_json(f"{base}/v2/{repo}/manifests/{t}")[1], "")
-        special = {t for t in tags if t == "latest" or RELEASE.match(t) or t.endswith("buildcache")}
+        special = {t for t in tags if t == "latest" or RELEASE.match(t)}
         builds = sorted((t for t in tags if t not in special),
                         key=lambda t: info[t][1], reverse=True)
         kept = set(builds[:keep]) | special | (pinned & set(tags))
