@@ -30,6 +30,10 @@ spec:
       # Its password is in secret-values.enc.yaml; the chart's default user
       # is empty (Scylla without authentication).
       SCYLLA_USERNAME: echophase
+    # Files and avatars in the release's own SeaweedFS (20Gi volume); its S3
+    # keys are in secret-values.enc.yaml.
+    s3:
+      enabled: true
     echophase:
       image:
         repository: echophase/server
