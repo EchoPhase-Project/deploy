@@ -4,8 +4,9 @@ This repository contains the EchoPhase instance of the project. The instance
 is a single k3s node. Flux applies the state of `main` to the node. A change
 on `main` goes live in less than one minute. The full rules for persons are in
 [CONTRIBUTING.md](CONTRIBUTING.md). The reasons for the large decisions are
-in [docs/adr/](docs/adr/). This file is the short version for coding agents. If this file and CONTRIBUTING.md are different, CONTRIBUTING.md and the
-files are correct. Then correct this file.
+in [docs/adr/](docs/adr/). This file is the short version for coding agents.
+If this file and CONTRIBUTING.md are different, CONTRIBUTING.md and the files
+are correct. Then correct this file.
 
 ## Layout
 
